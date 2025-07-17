@@ -1,4 +1,4 @@
-import { getDepositAddress, scheduleTransaction } from '../utils/api';
+import { getDepositAddressFromAmount, scheduleTransaction } from '../utils/api';
 import { executeTransaction, getWallet } from '../utils/execute-transaction';
 import { ethers } from 'ethers';
 import { config } from 'dotenv';
@@ -20,64 +20,77 @@ const DESTINATION_TOKEN = {
     address: USDC.address,
 };
 
-function generateDepositCallData(
+// v4 required parameters
+const DAPP_ID = "your-dapp-id"; // Replace with your actual dapp ID
+const USER_ID = DESTINATION_WALLET; // Using wallet address as userId
+
+function generateDepositCallDataABI(): string {
+    // Return the function ABI as a JSON string
+    return JSON.stringify({
+        name: "depositERC20",
+        type: "function",
+        inputs: [
+            { name: "_token", type: "address" },
+            { name: "_amount", type: "uint104" },
+            { name: "_zkLinkAddress", type: "bytes32" },
+            { name: "_subAccountId", type: "uint8" },
+            { name: "_mapping", type: "bool" }
+        ],
+        outputs: [],
+        stateMutability: "external"
+    });
+}
+
+function generateDepositCallDataParams(
     tokenAddress: string,
-    amount: string,
     userAddress: string
 ): string {
-    // Create the contract interface with depositERC20 function
-    const apexOmniInterface = new ethers.Interface([
-        "function depositERC20(address _token, uint104 _amount, bytes32 _zkLinkAddress, uint8 _subAccountId, bool _mapping) external"
-    ]);
-
     // Format the zkLink address (pad with zeros and remove 0x prefix)
     const zkLinkAddress = `0x000000000000000000000000${userAddress.slice(2)}`;
-
-    // Generate the contract payload for depositing into Apex Omni
-    return apexOmniInterface.encodeFunctionData("depositERC20", [
-        tokenAddress,
-        amount,
-        zkLinkAddress,
-        0, // subAccountId
-        false
-    ]);
+    
+    // Parameters as comma-separated string, using "AARC" as placeholder for amount
+    return `${tokenAddress},AARC,${zkLinkAddress},0,false`;
 }
 
 async function depositIntoPerp(amount: string) {
     try {
-        // Generate call data for depositing into Apex Omni
-        const callData = generateDepositCallData(
+        // Generate call data for depositing into Apex Omni using v4 format
+        const calldataABI = generateDepositCallDataABI();
+        const calldataParams = generateDepositCallDataParams(
             USDC.address,
-            amount,
             DESTINATION_WALLET
         );
 
-        // Get deposit address
-        const depositData = await getDepositAddress({
+        // Get deposit address using v4 API
+        const depositData = await getDepositAddressFromAmount({
             destinationChainId: DESTINATION_TOKEN.chainId.toString(),
             destinationTokenAddress: DESTINATION_TOKEN.address,
-            toAmount: amount,
+            fromAmount: amount,
             destinationRecipient: APEX_OMNI_ADDRESS,
             transferType: 'wallet',
-            targetCalldata: callData,
+            userId: USER_ID,
+            dappId: DAPP_ID,
+            calldataABI: calldataABI,
+            calldataParams: calldataParams,
         });
 
         console.log("Deposit address received:", depositData.depositAddress);
+        console.log("Request ID:", depositData.requestId);
 
-        // Schedule the transaction
+        // Execute the transaction first
+        const txHash = await executeTransaction(depositData.txData);
+        console.log("Transaction executed with hash:", txHash);
+
+        // Schedule the transaction using v4 format
         const scheduledTx = await scheduleTransaction({
-            requestId: depositData.requestId,
-            fromAddress: DESTINATION_WALLET,
-            toAddress: depositData.depositAddress,
-            token: DESTINATION_TOKEN.address,
             amount: amount,
+            chainId: DESTINATION_TOKEN.chainId.toString(),
+            requestId: depositData.requestId,
+            tokenAddress: DESTINATION_TOKEN.address,
+            transactionHash: txHash,
         });
 
         console.log("Transaction scheduled:", scheduledTx);
-
-        // Execute the transaction
-        const txHash = await executeTransaction(depositData.txData);
-        console.log("Transaction executed with hash:", txHash);
 
         return txHash;
     } catch (error) {

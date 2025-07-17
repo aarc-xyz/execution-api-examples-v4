@@ -1,4 +1,4 @@
-import { getDepositAddress, scheduleTransaction } from '../utils/api';
+import { getDepositAddressFromAmount, scheduleTransaction } from '../utils/api';
 import { executeTransaction, getWallet } from '../utils/execute-transaction';
 import { ethers } from 'ethers';
 import { config } from 'dotenv';
@@ -14,56 +14,69 @@ const DESTINATION_TOKEN = {
     address: USDT_ADDRESS,
 };
 
-function generateStablecoinCallData(
-    toAddress: string,
-    amount: string
-): string {
-    // Create the contract interface with mint function
-    const usdtInterface = new ethers.Interface([
-        "function mint(address _destination, uint256 _amount) external"
-    ]);
+// v4 required parameters
+const DAPP_ID = "your-dapp-id"; // Replace with your actual dapp ID
+const USER_ID = DESTINATION_WALLET; // Using wallet address as userId
 
-    // Generate the contract payload for minting USDT
-    return usdtInterface.encodeFunctionData("mint", [
-        toAddress, // destination: user's address
-        amount // amount: amount to mint
-    ]);
+function generateStablecoinCallDataABI(): string {
+    // Return the function ABI as a JSON string
+    return JSON.stringify({
+        name: "mint",
+        type: "function",
+        inputs: [
+            { name: "_destination", type: "address" },
+            { name: "_amount", type: "uint256" }
+        ],
+        outputs: [],
+        stateMutability: "external"
+    });
+}
+
+function generateStablecoinCallDataParams(
+    toAddress: string
+): string {
+    // Parameters as comma-separated string, using "AARC" as placeholder for amount
+    return `${toAddress},AARC`;
 }
 
 async function mintStablecoin(amount: string) {
     try {
-        // Generate call data for USDT minting
-        const callData = generateStablecoinCallData(
-            DESTINATION_WALLET,
-            amount
+        // Generate call data for USDT minting using v4 format
+        const calldataABI = generateStablecoinCallDataABI();
+        const calldataParams = generateStablecoinCallDataParams(
+            DESTINATION_WALLET
         );
 
-        // Get deposit address
-        const depositData = await getDepositAddress({
+        // Get deposit address using v4 API
+        const depositData = await getDepositAddressFromAmount({
             destinationChainId: DESTINATION_TOKEN.chainId.toString(),
             destinationTokenAddress: DESTINATION_TOKEN.address,
-            toAmount: amount,
+            fromAmount: amount,
             destinationRecipient: USDT_ADDRESS,
             transferType: 'wallet',
-            targetCalldata: callData,
+            userId: USER_ID,
+            dappId: DAPP_ID,
+            calldataABI: calldataABI,
+            calldataParams: calldataParams,
         });
 
         console.log("Deposit address received:", depositData.depositAddress);
+        console.log("Request ID:", depositData.requestId);
 
-        // Schedule the transaction
+        // Execute the transaction first
+        const txHash = await executeTransaction(depositData.txData);
+        console.log("Transaction executed with hash:", txHash);
+
+        // Schedule the transaction using v4 format
         const scheduledTx = await scheduleTransaction({
-            requestId: depositData.requestId,
-            fromAddress: DESTINATION_WALLET,
-            toAddress: depositData.depositAddress,
-            token: DESTINATION_TOKEN.address,
             amount: amount,
+            chainId: DESTINATION_TOKEN.chainId.toString(),
+            requestId: depositData.requestId,
+            tokenAddress: DESTINATION_TOKEN.address,
+            transactionHash: txHash,
         });
 
         console.log("Transaction scheduled:", scheduledTx);
-
-        // Execute the transaction
-        const txHash = await executeTransaction(depositData.txData);
-        console.log("Transaction executed with hash:", txHash);
 
         return txHash;
     } catch (error) {

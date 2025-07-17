@@ -3,11 +3,14 @@ import { config } from 'dotenv';
 import {
   DepositAddressResponse,
   ScheduleTransactionResponse,
+  ScheduleDepositAddressActivationResponse,
   SupportedToken,
   SupportedChain,
   BalancesResponse,
+  GetDepositAddressFromAmountParams,
   GetDepositAddressParams,
   ScheduleTransactionParams,
+  ScheduleDepositAddressActivationParams,
   GetSupportedTokensParams,
   GetBalancesParams
 } from '../types';
@@ -26,9 +29,23 @@ const axiosInstance = axios.create({
   }
 });
 
+export async function getDepositAddressFromAmount(params: GetDepositAddressFromAmountParams): Promise<DepositAddressResponse> {
+  try {
+    const response = await axiosInstance.get('/v4/deposit-address/from-amount', {
+      params
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to get deposit address from amount');
+    }
+    throw error;
+  }
+}
+
 export async function getDepositAddress(params: GetDepositAddressParams): Promise<DepositAddressResponse> {
   try {
-    const response = await axiosInstance.get('/v3/deposit-address', {
+    const response = await axiosInstance.get('/v4/get-deposit-address', {
       params
     });
     return response.data;
@@ -42,7 +59,7 @@ export async function getDepositAddress(params: GetDepositAddressParams): Promis
 
 export async function scheduleTransaction(params: ScheduleTransactionParams): Promise<ScheduleTransactionResponse> {
   try {
-    const response = await axiosInstance.post('/v3/schedule-transaction', params);
+    const response = await axiosInstance.post('/v4/schedule-transaction', params);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
@@ -52,9 +69,33 @@ export async function scheduleTransaction(params: ScheduleTransactionParams): Pr
   }
 }
 
+export async function scheduleDepositAddressActivation(params: ScheduleDepositAddressActivationParams): Promise<ScheduleDepositAddressActivationResponse> {
+  try {
+    const response = await axiosInstance.post('/v4/schedule-deposit-address-activation', params);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to schedule deposit address activation');
+    }
+    throw error;
+  }
+}
+
+export async function getRequestStatus(requestId: string): Promise<any> {
+  try {
+    const response = await axiosInstance.get(`/v4/request-status/${requestId}`);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to get request status');
+    }
+    throw error;
+  }
+}
+
 export async function getSupportedTokens(params?: GetSupportedTokensParams): Promise<SupportedToken[]> {
   try {
-    const response = await axiosInstance.get('/v3/supported-tokens', {
+    const response = await axiosInstance.get('/v4/supported-tokens', {
       params
     });
     return response.data;
@@ -68,7 +109,7 @@ export async function getSupportedTokens(params?: GetSupportedTokensParams): Pro
 
 export async function getSupportedChains(): Promise<SupportedChain[]> {
   try {
-    const response = await axiosInstance.get('/v3/supported-chains');
+    const response = await axiosInstance.get('/v4/supported-chains');
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {

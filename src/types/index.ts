@@ -27,6 +27,11 @@ export interface ScheduleTransactionResponse {
   status: string;
 }
 
+export interface ScheduleDepositAddressActivationResponse {
+  status: string;
+  message?: string;
+}
+
 export interface SupportedToken {
   symbol: string;
   name: string;
@@ -57,12 +62,14 @@ export interface BalancesResponse {
 }
 
 // Request Types
-export interface GetDepositAddressParams {
+export interface GetDepositAddressFromAmountParams {
   destinationChainId: string;
   destinationTokenAddress: string;
-  toAmount: string;
+  fromAmount: string;
   destinationRecipient: string;
   transferType: 'onramp' | 'cex' | 'wallet';
+  userId: string;
+  dappId: string;
   routeType?: 'time' | 'fee' | 'value';
   fromChainId?: string;
   fromTokenAddress?: string;
@@ -72,17 +79,36 @@ export interface GetDepositAddressParams {
     token: string;
     recipient: string;
   }>;
-  targetCalldata?: string;
+  calldataABI?: string;
+  calldataParams?: string;
+  gasLimit?: string;
+}
+
+export interface GetDepositAddressParams {
+  destinationChainId: string;
+  destinationTokenAddress: string;
+  destinationRecipient: string;
+  userId: string;
+  dappId: string;
+  fromChainId?: string;
+  calldataABI?: string;
+  calldataParams?: string;
   gasLimit?: string;
 }
 
 export interface ScheduleTransactionParams {
-  requestId: string;
-  fromAddress: string;
-  toAddress: string;
-  token: string;
   amount: string;
-  scheduleTime?: string;
+  chainId: string;
+  requestId: string;
+  tokenAddress: string;
+  transactionHash: string;
+}
+
+export interface ScheduleDepositAddressActivationParams {
+  depositAddress: string;
+  requestId: string;
+  chainId: string;
+  tokenAddress: string;
 }
 
 export interface GetSupportedTokensParams {
